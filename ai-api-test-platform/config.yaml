@@ -1,0 +1,21 @@
+app:
+  name: AI 智能接口自动化测试平台
+  env: dev
+  base_url: http://127.0.0.1:8000
+
+openai:
+  model: gpt-4o
+  temperature: 0.2
+
+database:
+  driver: mysql+pymysql
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: 123456
+  name: ai_test_platform
+
+test:
+  request_timeout: 10
+  default_expected_status_code: 200
+

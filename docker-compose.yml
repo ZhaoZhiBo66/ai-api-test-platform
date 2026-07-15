@@ -8,12 +8,25 @@ services:
     ports:
       - "3306:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      # Over TCP on purpose, not the socket. While MySQL initialises the data
+      # directory it runs a temporary server with --skip-networking, which
+      # answers on the socket and would report healthy too early.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   app:
     build: .
     container_name: ai-api-test-platform
     depends_on:
-      - mysql
+      mysql:
+        # The short "- mysql" form only waits for the container to start, not
+        # for MySQL to accept connections. First boot takes tens of seconds,
+        # and the lifespan handler connects immediately.
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:

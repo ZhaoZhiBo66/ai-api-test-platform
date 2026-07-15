@@ -4,6 +4,7 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base
+from app.utils.time_utils import utc_now
 
 
 class TestCase(Base):
@@ -16,5 +17,5 @@ class TestCase(Base):
     expected_status_code: Mapped[int] = mapped_column(Integer, default=200)
     expected_json: Mapped[dict] = mapped_column(JSON, default=dict)
     sql_check: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 

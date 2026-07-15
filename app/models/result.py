@@ -4,6 +4,7 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base
+from app.utils.time_utils import utc_now
 
 
 class TestRun(Base):
@@ -16,7 +17,7 @@ class TestRun(Base):
     passed: Mapped[int] = mapped_column(Integer, default=0)
     failed: Mapped[int] = mapped_column(Integer, default=0)
     ai_summary: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class TestResult(Base):
@@ -32,5 +33,5 @@ class TestResult(Base):
     response_data: Mapped[dict] = mapped_column(JSON, default=dict)
     assertion_message: Mapped[str] = mapped_column(Text, default="")
     ai_analysis: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 

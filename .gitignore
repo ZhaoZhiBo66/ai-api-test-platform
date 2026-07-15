@@ -1,0 +1,14 @@
+.venv/
+.venv-codex/
+.idea/
+__pycache__/
+*.pyc
+*.db
+.pytest_cache/
+.mypy_cache/
+.env
+logs/*.log
+reports/allure-results/
+reports/allure-report/
+tests/generated_api_tests.py
+

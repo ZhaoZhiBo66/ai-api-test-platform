@@ -1,6 +1,7 @@
 import re
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
 from app.utils.config import get_settings
 from app.utils.logger import logger
@@ -11,10 +12,9 @@ _SELECT_ONLY = re.compile(r"^select\s", re.IGNORECASE)
 def _reject_reason(sql: str) -> str | None:
     """Return why `sql` is not an acceptable read-only check, or None if it is.
 
-    sql_check comes straight from the API, and validate() runs it against the
-    platform's own database. Statements are rejected rather than sanitised: a
-    check that is not a plain SELECT is a mistake worth surfacing, not
-    something to guess the intent of.
+    sql_check comes straight from the API and reaches a live database.
+    Statements are rejected rather than sanitised: a check that is not a plain
+    SELECT is a mistake worth surfacing, not something to guess the intent of.
     """
     statement = sql.strip().rstrip(";").strip()
     if not statement:
@@ -32,7 +32,17 @@ def _reject_reason(sql: str) -> str | None:
 
 class SQLValidator:
     def __init__(self) -> None:
-        self.engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+        # Built on first use, not here: this class is instantiated at import
+        # time, and SUT_DATABASE_URL may legitimately be unset.
+        self.engine: Engine | None = None
+
+    def _get_engine(self) -> Engine | None:
+        if self.engine is None:
+            url = get_settings().sut_database_url
+            if not url:
+                return None
+            self.engine = create_engine(url, pool_pre_ping=True)
+        return self.engine
 
     def validate(self, sql_check: dict) -> tuple[bool, str]:
         if not sql_check:
@@ -48,8 +58,12 @@ class SQLValidator:
             logger.warning("拒绝执行 SQL 校验语句: {}", sql)
             return False, reason
 
+        engine = self._get_engine()
+        if engine is None:
+            return False, "未配置被测系统数据库 SUT_DATABASE_URL，无法执行 SQL 校验"
+
         try:
-            with self.engine.connect() as conn:
+            with engine.connect() as conn:
                 rows = [dict(row._mapping) for row in conn.execute(text(sql)).fetchall()]
         except Exception as exc:
             logger.exception("SQL校验执行失败")

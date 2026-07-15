@@ -40,6 +40,11 @@ class Settings:
 
         self.database_url = os.getenv("DATABASE_URL", self._build_mysql_url(db_config))
 
+        # The database the SQL checks read, i.e. the one behind the API under
+        # test. Deliberately not defaulting to database_url: that holds this
+        # platform's own metadata tables, and checking those proves nothing.
+        self.sut_database_url = os.getenv("SUT_DATABASE_URL", "")
+
     @staticmethod
     def _build_mysql_url(db_config: dict[str, Any]) -> str:
         driver = db_config.get("driver", "mysql+pymysql")

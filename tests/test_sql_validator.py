@@ -22,14 +22,34 @@ def validator() -> SQLValidator:
     session.close()
 
     instance = SQLValidator()
-    # __init__ binds to settings.database_url; swap in the throwaway database so
-    # a destructive statement that slips through cannot reach anything real.
-    instance.engine.dispose()
+    # Stands in for the system under test's database. Injecting it also keeps
+    # _get_engine from reading SUT_DATABASE_URL, so a destructive statement
+    # that slips through cannot reach anything real.
     instance.engine = engine
     try:
         yield instance
     finally:
         engine.dispose()
+
+
+def test_unconfigured_sut_database_is_reported_not_silently_skipped():
+    """Without SUT_DATABASE_URL there is no database to check against.
+
+    It must not fall back to the platform's own database: that holds this
+    platform's metadata tables, and the README's own example queries a `user`
+    table that only exists in the system under test.
+    """
+    fresh = SQLValidator()
+
+    ok, message = fresh.validate({"sql": "SELECT name FROM api_interfaces"})
+
+    assert ok is False
+    assert "SUT_DATABASE_URL" in message
+    assert fresh.engine is None
+
+
+def test_engine_is_not_built_at_construction():
+    assert SQLValidator().engine is None
 
 
 def test_missing_sql_check_is_skipped(validator):

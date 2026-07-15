@@ -13,13 +13,13 @@ class OpenAIClient:
         self.settings = get_settings()
         self.client = OpenAI(api_key=self.settings.openai_api_key) if self.settings.openai_api_key else None
 
-    def generate_cases(self, input_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def generate_cases(self, input_data: dict[str, Any], expected_status_code: int = 200) -> list[dict[str, Any]]:
         if not self.client:
             logger.warning("OPENAI_API_KEY is missing, using local fallback cases")
-            return self._fallback_cases(input_data)
+            return self._fallback_cases(input_data, expected_status_code)
 
         try:
-            prompt = build_case_generation_prompt(input_data)
+            prompt = build_case_generation_prompt(input_data, expected_status_code)
             response = self.client.chat.completions.create(
                 model=self.settings.openai_model,
                 temperature=self.settings.openai_temperature,
@@ -32,7 +32,7 @@ class OpenAIClient:
             return json.loads(content)
         except Exception:
             logger.exception("OpenAI case generation failed, using local fallback cases")
-            return self._fallback_cases(input_data)
+            return self._fallback_cases(input_data, expected_status_code)
 
     def analyze_result(self, status_code: int, response: dict[str, Any], assertion_message: str = "") -> str:
         if not self.client:
@@ -54,15 +54,16 @@ class OpenAIClient:
             return self._fallback_analysis(status_code, response, assertion_message)
 
     @staticmethod
-    def _fallback_cases(input_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _fallback_cases(input_data: dict[str, Any], expected_status_code: int = 200) -> list[dict[str, Any]]:
+        code = expected_status_code
         cases: list[dict[str, Any]] = []
         for key, value in input_data.items():
-            cases.append({"case_name": f"{key}为空", "data": {**input_data, key: ""}, "expected_status_code": 200, "expected_json": {}})
-            cases.append({"case_name": f"{key}非法类型", "data": {**input_data, key: 123456}, "expected_status_code": 200, "expected_json": {}})
+            cases.append({"case_name": f"{key}为空", "data": {**input_data, key: ""}, "expected_status_code": code, "expected_json": {}})
+            cases.append({"case_name": f"{key}非法类型", "data": {**input_data, key: 123456}, "expected_status_code": code, "expected_json": {}})
             if isinstance(value, str):
-                cases.append({"case_name": f"{key}超长字符串", "data": {**input_data, key: "a" * 256}, "expected_status_code": 200, "expected_json": {}})
-        cases.append({"case_name": "SQL注入", "data": {k: "' OR '1'='1" for k in input_data}, "expected_status_code": 200, "expected_json": {}})
-        cases.append({"case_name": "XSS脚本注入", "data": {k: "<script>alert(1)</script>" for k in input_data}, "expected_status_code": 200, "expected_json": {}})
+                cases.append({"case_name": f"{key}超长字符串", "data": {**input_data, key: "a" * 256}, "expected_status_code": code, "expected_json": {}})
+        cases.append({"case_name": "SQL注入", "data": {k: "' OR '1'='1" for k in input_data}, "expected_status_code": code, "expected_json": {}})
+        cases.append({"case_name": "XSS脚本注入", "data": {k: "<script>alert(1)</script>" for k in input_data}, "expected_status_code": code, "expected_json": {}})
         return cases
 
     @staticmethod

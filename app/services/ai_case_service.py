@@ -12,7 +12,7 @@ def generate_and_save_cases(
     expected_status_code: int = 200,
 ) -> list[TestCase]:
     get_interface(db, interface_id)
-    ai_cases = openai_client.generate_cases(input_data)
+    ai_cases = openai_client.generate_cases(input_data, expected_status_code)
     saved_cases: list[TestCase] = []
 
     for item in ai_cases:
@@ -20,7 +20,10 @@ def generate_and_save_cases(
             interface_id=interface_id,
             case_name=item.get("case_name", "AI生成用例"),
             data=item.get("data", input_data),
-            expected_status_code=item.get("expected_status_code", expected_status_code),
+            # The caller states what this batch should return, so their value
+            # wins over whatever the generator put in the item -- a model that
+            # ignores the instruction in the prompt cannot override it here.
+            expected_status_code=expected_status_code,
             expected_json=item.get("expected_json", {}),
             sql_check=item.get("sql_check", {}),
         )

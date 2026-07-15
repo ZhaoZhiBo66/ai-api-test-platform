@@ -1,4 +1,6 @@
-FROM python:3.11-slim
+# Matches the version CI tests on. Shipping 3.11 while testing 3.12 means the
+# green check says nothing about the image.
+FROM python:3.12-slim
 
 WORKDIR /app
 

@@ -1,6 +1,6 @@
 # AI 智能接口自动化测试平台
 
-基于 `Python 3.11 + FastAPI + Pytest + OpenAI API + MySQL` 的接口自动化测试平台，面向测试开发 / AI 测试工程师简历项目。
+基于 `Python 3.12 + FastAPI + Pytest + OpenAI API + MySQL` 的接口自动化测试平台，面向测试开发 / AI 测试工程师简历项目。
 
 项目目标不是写一个临时 Demo，而是完成一条真实测试平台链路：
 
@@ -44,7 +44,7 @@ ai-api-test-platform/
 
 ```bash
 cd ai-api-test-platform
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env

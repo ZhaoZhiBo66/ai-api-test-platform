@@ -219,14 +219,18 @@ logs/app.log
 ## Docker 启动
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
+
+`app` 会等 MySQL 通过健康检查后再启动，首次构建 MySQL 初始化数据目录需要几十秒。
 
 启动后访问：
 
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+注意：容器内不会配置 `SUT_DATABASE_URL`，SQL 数据校验会返回未配置提示。需要时在 `docker-compose.yml` 的 `app.environment` 里指向被测系统的数据库。
 
 ## 简历写法参考
 

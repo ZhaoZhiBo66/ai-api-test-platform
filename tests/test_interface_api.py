@@ -84,6 +84,26 @@ def test_delete_removes_the_row(client, db_session):
     assert db_session.get(ApiInterface, created["id"]) is None
 
 
+@pytest.mark.parametrize("field", ["name", "url", "method", "headers", "body"])
+def test_update_rejects_explicit_null(client, field):
+    """No column is nullable, so an explicit null is a client mistake, not a 500."""
+    created = client.post("/interfaces", json=payload()).json()
+
+    response = client.put(f"/interfaces/{created['id']}", json={field: None})
+
+    assert response.status_code == 422
+    assert client.get(f"/interfaces/{created['id']}").json() == created
+
+
+def test_update_with_empty_body_changes_nothing(client):
+    created = client.post("/interfaces", json=payload()).json()
+
+    response = client.put(f"/interfaces/{created['id']}", json={})
+
+    assert response.status_code == 200
+    assert response.json() == created
+
+
 def test_update_unknown_id_returns_404(client):
     response = client.put("/interfaces/9999", json={"name": "不存在"})
 

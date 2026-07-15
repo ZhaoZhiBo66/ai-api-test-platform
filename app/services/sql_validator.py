@@ -1,7 +1,33 @@
+import re
+
 from sqlalchemy import create_engine, text
 
 from app.utils.config import get_settings
 from app.utils.logger import logger
+
+_SELECT_ONLY = re.compile(r"^select\s", re.IGNORECASE)
+
+
+def _reject_reason(sql: str) -> str | None:
+    """Return why `sql` is not an acceptable read-only check, or None if it is.
+
+    sql_check comes straight from the API, and validate() runs it against the
+    platform's own database. Statements are rejected rather than sanitised: a
+    check that is not a plain SELECT is a mistake worth surfacing, not
+    something to guess the intent of.
+    """
+    statement = sql.strip().rstrip(";").strip()
+    if not statement:
+        return "SQL校验语句为空"
+    if ";" in statement:
+        # Neither driver enables multi-statement execution by default, but a
+        # payload that tries is never a legitimate check.
+        return "SQL校验不允许多条语句"
+    if not _SELECT_ONLY.match(statement):
+        # A leading comment also lands here: harmless checks are rewritten
+        # more easily than comment-hiding is detected reliably.
+        return "SQL校验只允许 SELECT 语句"
+    return None
 
 
 class SQLValidator:
@@ -16,6 +42,11 @@ class SQLValidator:
         expected = sql_check.get("expected")
         if not sql:
             return True, "未配置 SQL 语句"
+
+        reason = _reject_reason(sql)
+        if reason:
+            logger.warning("拒绝执行 SQL 校验语句: {}", sql)
+            return False, reason
 
         try:
             with self.engine.connect() as conn:

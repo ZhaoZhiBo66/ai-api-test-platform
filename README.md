@@ -57,8 +57,11 @@ OPENAI_API_KEY=你的 OpenAI Key
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=123456
+DB_PASSWORD=你的数据库密码
 DB_NAME=ai_test_platform
+
+# 可选：被测系统的数据库，仅 SQL 数据校验用到，见下文
+SUT_DATABASE_URL=mysql+pymysql://root:密码@127.0.0.1:3306/被测系统库名?charset=utf8mb4
 ```
 
 创建 MySQL 数据库：
@@ -192,6 +195,10 @@ allure serve reports/allure-results
 ```
 
 平台会在接口请求后执行 SQL，并校验数据库返回结果是否符合预期。
+
+SQL 校验读的是**被测系统的数据库**（上例中 `user` 表属于被测的登录接口），因此需要在 `.env` 中单独配置 `SUT_DATABASE_URL`。没有配置时，SQL 校验会返回明确的未配置提示，而不会去查平台自己的库——平台库里只有 `api_interfaces`、`test_cases` 等元数据表，校验它们没有意义。
+
+出于安全考虑，`sql_check.sql` 只接受单条 `SELECT` 语句：它来自接口入参且会直接在数据库上执行，其他语句（含多语句、注释开头的语句）会被拒绝。
 
 ## 日志
 

@@ -4,6 +4,7 @@ from sqlalchemy import JSON, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base
+from app.utils.time_utils import utc_now
 
 
 class ApiInterface(Base):
@@ -15,6 +16,6 @@ class ApiInterface(Base):
     method: Mapped[str] = mapped_column(String(10), nullable=False)
     headers: Mapped[dict] = mapped_column(JSON, default=dict)
     body: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 

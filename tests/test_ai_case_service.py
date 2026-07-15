@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.ai.openai_client import OpenAIClient
+from app.ai.prompt_templates import build_case_generation_prompt
 from app.models.interface import ApiInterface
 from app.models.testcase import TestCase as CaseModel
 from app.services import ai_case_service
@@ -81,6 +82,22 @@ def test_generate_cases_falls_back_when_no_client_is_configured():
     )
 
 
+# --- the prompt -------------------------------------------------------------
+
+
+def test_prompt_carries_the_requested_status_code():
+    prompt = build_case_generation_prompt({"username": "admin"}, 400)
+
+    assert "400" in prompt
+    assert "200" not in prompt
+
+
+def test_prompt_carries_the_input_data_unescaped():
+    prompt = build_case_generation_prompt({"用户名": "管理员"})
+
+    assert "用户名" in prompt and "管理员" in prompt
+
+
 # --- generate_and_save_cases ------------------------------------------------
 
 
@@ -101,7 +118,7 @@ def test_generate_and_save_rejects_an_unknown_interface(db_session):
 
 
 def test_generate_and_save_fills_in_defaults_for_a_bare_item(monkeypatch, db_session, interface):
-    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data: [{}])
+    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data, code=200: [{}])
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"}, 201)
 
@@ -109,26 +126,40 @@ def test_generate_and_save_fills_in_defaults_for_a_bare_item(monkeypatch, db_ses
     assert saved[0].data == {"username": "admin"}
     assert saved[0].expected_json == {}
     assert saved[0].sql_check == {}
-    # The caller's value is only reachable when the item omits the field.
     assert saved[0].expected_status_code == 201
 
 
-def test_generated_item_overrides_the_callers_expected_status_code(monkeypatch, db_session, interface):
+def test_callers_expected_status_code_wins_over_the_item(monkeypatch, db_session, interface):
+    """A generator that ignores the requested code cannot override the caller."""
     monkeypatch.setattr(
         ai_case_service.openai_client,
         "generate_cases",
-        lambda data: [{"case_name": "自定义", "expected_status_code": 400}],
+        lambda data, code=200: [{"case_name": "自定义", "expected_status_code": 999}],
     )
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"}, 201)
 
-    assert saved[0].expected_status_code == 400
+    assert saved[0].expected_status_code == 201
+
+
+def test_expected_status_code_reaches_every_generated_case(db_session, interface):
+    saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"}, 400)
+
+    assert {c.expected_status_code for c in saved} == {400}
+
+
+def test_expected_status_code_defaults_to_200(db_session, interface):
+    saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"})
+
+    assert {c.expected_status_code for c in saved} == {200}
 
 
 def test_generate_and_save_keeps_a_sql_check_from_the_item(monkeypatch, db_session, interface):
     check = {"sql": "select username from user", "expected": {"username": "admin"}}
     monkeypatch.setattr(
-        ai_case_service.openai_client, "generate_cases", lambda data: [{"case_name": "带SQL", "sql_check": check}]
+        ai_case_service.openai_client,
+        "generate_cases",
+        lambda data, code=200: [{"case_name": "带SQL", "sql_check": check}],
     )
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"})
@@ -137,7 +168,7 @@ def test_generate_and_save_keeps_a_sql_check_from_the_item(monkeypatch, db_sessi
 
 
 def test_generate_and_save_with_no_generated_cases_saves_nothing(monkeypatch, db_session, interface):
-    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data: [])
+    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data, code=200: [])
 
     assert ai_case_service.generate_and_save_cases(db_session, interface.id, {}) == []
     assert db_session.query(CaseModel).count() == 0

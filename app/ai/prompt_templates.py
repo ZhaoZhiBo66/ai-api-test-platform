@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 
-def build_case_generation_prompt(input_data: dict[str, Any]) -> str:
+def build_case_generation_prompt(input_data: dict[str, Any], expected_status_code: int = 200) -> str:
     return f"""
 你是资深测试开发工程师。请基于下面的接口请求参数生成接口自动化测试用例。
 
@@ -12,11 +12,12 @@ def build_case_generation_prompt(input_data: dict[str, Any]) -> str:
 要求:
 1. 覆盖空值、边界值、超长字符串、特殊字符、非法类型、SQL 注入、XSS。
 2. 输出必须是 JSON 数组，不要输出 Markdown。
-3. 每个元素格式如下:
+3. 每个用例的 expected_status_code 统一填 {expected_status_code}。
+4. 每个元素格式如下:
 {{
   "case_name": "用例名称",
   "data": {{}},
-  "expected_status_code": 200,
+  "expected_status_code": {expected_status_code},
   "expected_json": {{}}
 }}
 """

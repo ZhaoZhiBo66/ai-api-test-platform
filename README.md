@@ -232,28 +232,5 @@ http://127.0.0.1:8000/docs
 
 注意：容器内不会配置 `SUT_DATABASE_URL`，SQL 数据校验会返回未配置提示。需要时在 `docker-compose.yml` 的 `app.environment` 里指向被测系统的数据库。
 
-## 简历写法参考
 
-项目名称：AI 智能接口自动化测试平台
-
-项目描述：
-
-基于 FastAPI、Pytest、OpenAI API 和 MySQL 设计并实现接口自动化测试平台，支持接口管理、AI 自动生成测试用例、自动执行接口请求、响应断言、SQL 数据校验、AI 失败原因分析和 Allure 测试报告生成。
-
-个人职责：
-
-- 设计接口管理、测试用例、测试执行记录、测试结果等数据库模型。
-- 封装 OpenAI API，实现边界值、空值、非法类型、SQL 注入、XSS 等测试用例自动生成。
-- 基于 requests 实现 GET、POST、PUT、DELETE、PATCH 请求执行和响应断言。
-- 基于 SQLAlchemy 实现 MySQL 数据校验能力。
-- 基于 loguru 实现接口请求、响应结果、异常信息日志落盘。
-- 集成 allure-pytest，支持自动生成接口测试报告。
-
-## 后续可扩展方向
-
-- 增加 Web 页面，支持在线录入接口和查看报告。
-- 增加定时任务，定时执行回归测试。
-- 增加 Jenkins / GitHub Actions CI 集成。
-- 增加 token 登录态管理和环境变量切换。
-- 增加接口依赖提取，例如登录接口返回 token 后自动传给后续接口。
 

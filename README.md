@@ -1,10 +1,6 @@
 # AI 智能接口自动化测试平台
 
-基于 `Python 3.12 + FastAPI + Pytest + OpenAI API + MySQL` 的接口自动化测试平台，面向测试开发 / AI 测试工程师简历项目。
-
-项目目标不是写一个临时 Demo，而是完成一条真实测试平台链路：
-
-接口录入 -> AI 生成测试用例 -> 自动执行接口请求 -> 响应断言 -> SQL 数据校验 -> AI 分析失败原因 -> 生成 Allure 报告。
+基于 `Python 3.12 + FastAPI + Pytest + OpenAI API + MySQL` 的接口自动化测试平台
 
 ## 技术栈
 

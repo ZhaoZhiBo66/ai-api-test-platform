@@ -1,6 +1,7 @@
 const state = {
   environments: [], interfaceOptions: [], interfaces: [], cases: [], caseOptions: [], suites: [], runs: [],
   interfacePage: { page: 1, pages: 1 }, casePage: { page: 1, pages: 1 }, poll: null,
+  activeRun: null, watchTimer: null,
 };
 
 const $ = id => document.getElementById(id);
@@ -34,10 +35,20 @@ function escapeHtml(value) {
   }[character]));
 }
 
-const badge = status => `<span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+const statusLabels = {
+  queued: '排队中', running: '执行中', passed: '通过', failed: '失败',
+  cancelled: '已取消', interrupted: '已中断', skipped: '未执行',
+};
+const terminalStatuses = new Set(['passed', 'failed', 'cancelled', 'interrupted']);
+const badge = status => `<span class="status ${escapeHtml(status)}">${escapeHtml(statusLabels[status] || status)}</span>`;
 const elapsed = run => (!run.started_at || !run.finished_at)
   ? '-'
-  : `${Math.max(0, new Date(run.finished_at) - new Date(run.started_at))}ms`;
+  : `${(Math.max(0, new Date(run.finished_at) - new Date(run.started_at)) / 1000).toFixed(2)}s`;
+
+function activateTab(name) {
+  document.querySelectorAll('.tabs button').forEach(item => item.classList.toggle('active', item.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${name}`));
+}
 
 function fillSelect(id, items, emptyLabel = '') {
   const select = $(id);
@@ -154,36 +165,125 @@ async function loadSuites() {
   $('suite-list').innerHTML = state.suites.map((suite, index) => {
     const trend = trends[index];
     const latest = trend.latest_pass_rate == null ? '尚未执行' : `最近通过率 ${trend.latest_pass_rate}%`;
+    const caseNames = Object.fromEntries(state.caseOptions.map(item => [item.id, item.case_name]));
+    const flow = suite.case_ids.slice(0, 6).map((caseId, stepIndex) =>
+      `${stepIndex ? '<i>→</i>' : ''}<span>${stepIndex + 1}. ${escapeHtml(caseNames[caseId] || `用例 #${caseId}`)}</span>`
+    ).join('');
+    const more = suite.case_ids.length > 6 ? `<span>还有 ${suite.case_ids.length - 6} 步</span>` : '';
     return `<div class="stack-item"><header><b>#${suite.id} ${escapeHtml(suite.name)}</b><span>${suite.enabled ? '启用' : '停用'}</span></header>
       <small>${escapeHtml(suite.description || '暂无说明')}</small>
       <small>用例 ${suite.case_ids.length} · 近 ${trend.run_count} 次执行 · ${latest}</small>
-      <p><button class="primary" onclick="runSuite(${suite.id})">立即回归</button> <button class="ghost danger" onclick="deleteSuite(${suite.id})">删除</button></p></div>`;
+      <div class="suite-flow">${flow}${more}</div>
+      <div class="suite-actions"><button class="primary" onclick="runSuite(${suite.id}, this)">开始执行并查看过程</button><button class="ghost danger" onclick="deleteSuite(${suite.id})">删除</button></div></div>`;
   }).join('') || '<div class="empty">暂无回归套件</div>';
 }
 
 async function loadRuns() {
   const page = await api('/runs?limit=30');
   state.runs = page.items;
-  $('run-list').innerHTML = state.runs.map(run => `
-    <tr><td>#${run.id}</td><td>${badge(run.status)}</td><td>${run.passed}/${run.failed}</td><td>${elapsed(run)}</td>
+  const suiteNames = Object.fromEntries(state.suites.map(suite => [suite.id, suite.name]));
+  $('run-list').innerHTML = state.runs.map(run => {
+    const scope = run.suite_id ? suiteNames[run.suite_id] || `套件 #${run.suite_id}` : `接口 #${run.interface_id}`;
+    return `
+    <tr><td><b>#${run.id}</b><small>${escapeHtml(scope)}</small></td><td>${badge(run.status)}</td><td>${run.passed}/${run.failed}</td><td>${elapsed(run)}</td>
     <td><button class="ghost" onclick="showResults(${run.id})">查看</button>${['queued', 'running'].includes(run.status) ? ` <button class="ghost" onclick="cancelRun(${run.id})">取消</button>` : ''}</td></tr>
-  `).join('') || '<tr><td colspan="5">暂无任务</td></tr>';
+  `; }).join('') || '<tr><td colspan="5">暂无任务</td></tr>';
   const active = state.runs.some(run => ['queued', 'running'].includes(run.status));
   if (active && !state.poll) state.poll = setInterval(loadRuns, 2500);
   if (!active && state.poll) { clearInterval(state.poll); state.poll = null; }
 }
 
-async function showResults(runId) {
+function renderResults(run, results) {
+  $('result-title').textContent = `任务 #${run.id} · ${statusLabels[run.status] || run.status} · ${results.length} 条结果`;
+  $('result-list').className = 'result-list';
+  $('result-list').innerHTML = results.map((result, index) => `
+    <div class="result ${result.status}"><header><b>第 ${index + 1} 步 · ${escapeHtml(result.case_name)}</b>${badge(result.status)}</header>
+    <pre>HTTP ${result.status_code ?? '-'} · ${result.duration_ms ?? '-'}ms · 第${result.attempt}次执行\n${escapeHtml(result.assertion_message || result.ai_analysis || '全部断言通过')}</pre>
+    <details><summary>展开本步骤的请求与响应</summary><pre>请求：${escapeHtml(JSON.stringify(result.request_data, null, 2))}\n响应：${escapeHtml(JSON.stringify(result.response_data, null, 2))}</pre></details></div>
+  `).join('') || '<div class="empty">任务刚刚开始，正在等待第一步结果…</div>';
+}
+
+function renderRunFocus(run, results) {
+  const suite = state.activeRun.suite || state.suites.find(item => item.id === run.suite_id);
+  const caseIds = state.activeRun.caseIds?.length
+    ? state.activeRun.caseIds
+    : (suite?.case_ids || results.map(item => item.case_id));
+  const caseMap = Object.fromEntries(state.caseOptions.map(item => [item.id, item]));
+  const resultMap = new Map(results.map(result => [result.case_id, result]));
+  const terminal = terminalStatuses.has(run.status);
+  const firstPending = caseIds.findIndex(caseId => !resultMap.has(caseId));
+  const total = Math.max(caseIds.length, run.total || 0, results.length);
+  const completed = terminal ? total : results.length;
+  const percentage = total ? Math.min(100, Math.round(completed / total * 100)) : 0;
+  const skipped = Math.max(0, total - results.length);
+
+  $('run-focus').hidden = false;
+  $('run-focus-title').textContent = `${suite?.name || state.activeRun.label || '接口回归'} · 任务 #${run.id}`;
+  $('run-focus-status').className = `status ${run.status}`;
+  $('run-focus-status').textContent = statusLabels[run.status] || run.status;
+  $('run-progress-count').textContent = terminal
+    ? `执行完成：通过 ${run.passed}，失败 ${run.failed}`
+    : `正在执行：已完成 ${results.length}/${total || '?'} 步`;
+  $('run-progress-detail').textContent = run.status === 'passed'
+    ? `整条业务链通过，共 ${results.length} 步`
+    : run.status === 'failed'
+      ? `发现 ${run.failed} 个失败${skipped ? `，后续 ${skipped} 步未执行` : ''}`
+      : run.status === 'running' ? '平台正在按依赖顺序调用接口' : `当前状态：${statusLabels[run.status] || run.status}`;
+  $('run-progress-bar').style.width = `${percentage}%`;
+
+  $('run-steps').innerHTML = caseIds.map((caseId, index) => {
+    const testCase = caseMap[caseId];
+    const result = resultMap.get(caseId);
+    let stepStatus = result?.status || 'queued';
+    if (!result && terminal) stepStatus = 'skipped';
+    else if (!result && run.status === 'running' && index === firstPending) stepStatus = 'running';
+    const interfaceName = state.interfaceOptions.find(item => item.id === testCase?.interface_id)?.name || '';
+    const detail = result
+      ? (result.status === 'passed' ? `HTTP ${result.status_code} · ${result.duration_ms}ms` : result.assertion_message || '执行失败')
+      : (stepStatus === 'running' ? '正在请求接口…' : stepStatus === 'skipped' ? '因前序失败未执行' : '等待前置步骤');
+    return `<div class="run-step ${stepStatus}"><span class="step-index">${result?.status === 'passed' ? '✓' : result?.status === 'failed' ? '!' : index + 1}</span><div><b>${escapeHtml(testCase?.case_name || `用例 #${caseId}`)}</b><small>${escapeHtml(interfaceName)}</small><small>${escapeHtml(detail)}</small></div></div>`;
+  }).join('') || '<div class="empty">该任务没有可显示的步骤</div>';
+}
+
+async function refreshActiveRun() {
+  if (!state.activeRun) return;
   try {
-    const page = await api(`/runs/${runId}/results?limit=500`);
-    $('result-title').textContent = `任务 #${runId} · ${page.total} 条结果`;
-    $('result-list').className = 'result-list';
-    $('result-list').innerHTML = page.items.map(result => `
-      <div class="result ${result.status}"><header><b>#${result.case_id} ${escapeHtml(result.case_name)}</b>${badge(result.status)}</header>
-      <pre>HTTP ${result.status_code ?? '-'} · ${result.duration_ms ?? '-'}ms · 第${result.attempt}次执行\n${escapeHtml(result.assertion_message || result.ai_analysis || '断言全部通过')}</pre>
-      <details><summary>请求与响应</summary><pre>请求：${escapeHtml(JSON.stringify(result.request_data, null, 2))}\n响应：${escapeHtml(JSON.stringify(result.response_data, null, 2))}</pre></details></div>
-    `).join('') || '<div class="empty">暂无结果，任务可能仍在执行</div>';
-  } catch (error) { message(error.message, 'error'); }
+    const [run, page] = await Promise.all([
+      api(`/runs/${state.activeRun.id}`),
+      api(`/runs/${state.activeRun.id}/results?limit=500`),
+    ]);
+    renderRunFocus(run, page.items);
+    renderResults(run, page.items);
+    await loadRuns();
+    if (terminalStatuses.has(run.status)) {
+      clearTimeout(state.watchTimer); state.watchTimer = null;
+      message(run.status === 'passed' ? `任务 #${run.id}：整条回归链路通过` : `任务 #${run.id}：执行${statusLabels[run.status] || run.status}`, run.status === 'passed' ? 'ok' : 'error');
+      await Promise.all([loadSystemInfo(), loadSuites()]);
+    } else {
+      state.watchTimer = setTimeout(refreshActiveRun, 800);
+    }
+  } catch (error) {
+    clearTimeout(state.watchTimer); state.watchTimer = null;
+    message(error.message, 'error');
+  }
+}
+
+async function watchRun(runId, options = {}) {
+  clearTimeout(state.watchTimer);
+  state.watchTimer = null;
+  state.activeRun = { id: runId, suite: options.suite || null, caseIds: options.caseIds || [], label: options.label || '' };
+  activateTab('overview');
+  $('run-focus').hidden = false;
+  $('run-focus-title').textContent = `任务 #${runId} · 正在读取执行过程`;
+  $('run-steps').innerHTML = '<div class="empty">正在读取业务步骤…</div>';
+  await refreshActiveRun();
+  if (options.scroll !== false) $('run-focus').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function showResults(runId) {
+  const run = state.runs.find(item => item.id === runId);
+  const suite = run?.suite_id ? state.suites.find(item => item.id === run.suite_id) : null;
+  await watchRun(runId, { suite, scroll: true });
 }
 
 async function cancelRun(id) {
@@ -191,15 +291,19 @@ async function cancelRun(id) {
   catch (error) { message(error.message, 'error'); }
 }
 
-async function runSuite(id) {
+async function runSuite(id, button) {
+  const originalText = button?.textContent;
   try {
+    if (button) { button.disabled = true; button.textContent = '正在启动…'; }
     const environmentId = $('run-environment').value;
+    const suite = state.suites.find(item => item.id === id);
     const run = await api(`/suites/${id}/runs/async`, {
       method: 'POST', body: JSON.stringify({ environment_id: environmentId ? Number(environmentId) : null, variables: {} }),
     });
-    message(`回归套件任务 #${run.run_id} 已提交`);
-    await Promise.all([loadRuns(), loadSystemInfo(), loadSuites()]);
+    message(`任务 #${run.run_id} 已开始，正在展示执行过程`);
+    await watchRun(run.run_id, { suite, caseIds: suite?.case_ids || [] });
   } catch (error) { message(error.message, 'error'); }
+  finally { if (button) { button.disabled = false; button.textContent = originalText; } }
 }
 
 async function deleteSuite(id) {
@@ -221,10 +325,7 @@ async function refreshAll() {
 }
 
 document.querySelectorAll('.tabs button').forEach(button => {
-  button.onclick = () => {
-    document.querySelectorAll('.tabs button').forEach(item => item.classList.toggle('active', item === button));
-    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${button.dataset.tab}`));
-  };
+  button.onclick = () => activateTab(button.dataset.tab);
 });
 
 $('api-key').value = apiKey();
@@ -298,7 +399,10 @@ $('run-form').onsubmit = async event => {
     if (!suiteMode) body.interface_id = Number($('run-interface').value);
     const path = suiteMode ? `/suites/${Number($('run-suite').value)}/runs/async` : '/runs/async';
     const run = await api(path, { method: 'POST', body: JSON.stringify(body) });
-    message(`异步任务 #${run.run_id} 已提交`); await Promise.all([loadRuns(), loadSystemInfo()]);
+    const suite = suiteMode ? state.suites.find(item => item.id === Number($('run-suite').value)) : null;
+    const caseIds = suiteMode ? (suite?.case_ids || []) : state.caseOptions.filter(item => item.interface_id === body.interface_id).map(item => item.id);
+    message(`任务 #${run.run_id} 已开始，正在展示执行过程`);
+    await watchRun(run.run_id, { suite, caseIds, label: suiteMode ? '' : `接口 #${body.interface_id}` });
   } catch (error) { message(error.message, 'error'); }
 };
 

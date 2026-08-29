@@ -37,6 +37,8 @@ def test_functional_workbench_and_assets_are_served(client):
     assert "发起异步测试" in response.text
     assert "OpenAPI导入" in response.text
     assert "AI生成测试用例" in response.text
+    assert "LIVE REGRESSION" in response.text
+    assert 'id="run-steps"' in response.text
     assert "interface-page-size" in response.text
     assert "case-filter-interface" in response.text
     assert client.get("/static/workbench.css").status_code == 200

@@ -8,20 +8,25 @@
 </head>
 <body>
   <header class="topbar">
-    <div><span class="brand-mark">QA</span><b>接口回归质量工作台</b></div>
-    <div class="auth">
-      <input id="api-key" type="password" placeholder="X-API-Key（本地关闭鉴权可留空）">
-      <button id="save-key" class="secondary">保存密钥</button>
-      <a href="/docs">API文档</a>
+    <a class="brand-link" href="/"><span class="brand-mark">QA</span><b>回归工作台</b></a>
+    <div class="topbar-actions">
+      <a href="/">首页</a>
+      <a href="/docs">API 文档</a>
+      <details class="auth">
+        <summary>API 密钥</summary>
+        <div class="auth-panel">
+          <input id="api-key" type="password" placeholder="本地关闭鉴权时留空">
+          <button id="save-key" class="secondary">保存</button>
+        </div>
+      </details>
     </div>
   </header>
 
   <main>
     <section class="hero">
       <div>
-        <span class="eyebrow">REGRESSION QUALITY GATE</span>
-        <h1>从接口契约到质量门禁，<br>跑通真实业务回归。</h1>
-        <p>组织回归套件、执行跨接口依赖链，并用确定性断言阻断缺陷。</p>
+        <h1>工作台</h1>
+        <p>管理测试数据、执行回归套件并查看结果。</p>
       </div>
       <div class="health">
         <span id="health-dot"></span>
@@ -42,12 +47,12 @@
     </section>
 
     <nav class="tabs" aria-label="工作台模块">
-      <button class="active" data-tab="overview">执行中心</button>
-      <button data-tab="environments">环境管理</button>
-      <button data-tab="interfaces">接口管理</button>
-      <button data-tab="cases">用例与AI生成</button>
-      <button data-tab="suites">回归套件</button>
-      <button data-tab="openapi">OpenAPI导入</button>
+      <button class="active" data-tab="overview">执行</button>
+      <button data-tab="environments">环境</button>
+      <button data-tab="interfaces">接口</button>
+      <button data-tab="cases">用例</button>
+      <button data-tab="suites">套件</button>
+      <button data-tab="openapi">OpenAPI</button>
     </nav>
 
     <div id="message" role="status"></div>
@@ -55,7 +60,7 @@
     <section class="tab-panel active" id="tab-overview">
       <div class="split">
         <article class="card">
-          <div class="card-title"><div><span>ASYNC RUN</span><h2>发起异步测试</h2></div></div>
+          <div class="card-title"><div><h2>发起测试</h2></div></div>
           <form id="run-form" class="form-grid">
             <label>执行范围<select id="run-scope"><option value="suite">回归套件</option><option value="interface">单个接口</option></select></label>
             <label id="run-suite-field">回归套件<select id="run-suite"></select></label>
@@ -64,17 +69,17 @@
             <label class="wide">运行变量（JSON）<textarea id="run-variables" rows="4">{}</textarea></label>
             <label class="check"><input id="run-ai" type="checkbox">失败时使用AI分析</label>
             <label class="check"><input id="run-fail-fast" type="checkbox">失败后立即停止</label>
-            <button type="submit" class="primary wide">提交异步任务</button>
+            <button type="submit" class="primary wide">开始执行</button>
           </form>
         </article>
         <article class="card">
-          <div class="card-title"><div><span>RUN HISTORY</span><h2>最近执行</h2></div><button id="refresh-runs" class="ghost">刷新</button></div>
+          <div class="card-title"><div><h2>最近执行</h2></div><button id="refresh-runs" class="ghost">刷新</button></div>
           <div class="table-wrap"><table><thead><tr><th>ID</th><th>状态</th><th>通过/失败</th><th>耗时</th><th></th></tr></thead><tbody id="run-list"></tbody></table></div>
         </article>
       </div>
       <article id="run-focus" class="card run-focus" hidden>
         <div class="card-title">
-          <div><span>LIVE REGRESSION</span><h2 id="run-focus-title">回归执行过程</h2></div>
+          <div><h2 id="run-focus-title">回归执行过程</h2></div>
           <span id="run-focus-status" class="status queued">排队中</span>
         </div>
         <div class="run-progress-summary">
@@ -84,7 +89,7 @@
         <div class="run-progress-track" aria-label="回归执行进度"><span id="run-progress-bar"></span></div>
         <div id="run-steps" class="run-steps"></div>
       </article>
-      <article class="card results-card"><div class="card-title"><div><span>RESULT DETAIL</span><h2 id="result-title">选择一个任务查看结果</h2></div></div><div id="result-list" class="result-list empty">暂无结果</div></article>
+      <article class="card results-card"><div class="card-title"><div><h2 id="result-title">选择一个任务查看结果</h2></div></div><div id="result-list" class="result-list empty">暂无结果</div></article>
     </section>
 
     <section class="tab-panel" id="tab-environments">
@@ -111,7 +116,7 @@
           <button class="primary wide">保存接口</button>
         </form></article>
         <article class="card list-card">
-          <div class="card-title"><div><span>PAGED QUERY</span><h2>接口列表</h2></div><b id="interface-total" class="total-label">0 条</b></div>
+          <div class="card-title"><div><h2>接口列表</h2></div><b id="interface-total" class="total-label">0 条</b></div>
           <form id="interface-filter-form" class="filters">
             <input id="interface-keyword" placeholder="按名称或URL查询">
             <select id="interface-filter-method"><option value="">全部方法</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
@@ -128,7 +133,7 @@
       <div class="split">
         <div class="column-stack">
           <article class="card ai-card">
-            <div class="card-title"><div><span>AI CASE GENERATION</span><h2>AI生成测试用例</h2></div><span class="ai-chip">AI + 规则兜底</span></div>
+            <div class="card-title"><div><h2>AI 生成测试用例</h2></div><span class="ai-chip">可选功能</span></div>
             <p class="hint">输入一组正常请求参数，系统会生成空值、边界值、非法类型、SQL注入和XSS等用例；没有配置模型密钥时自动使用确定性规则。</p>
             <form id="ai-case-form" class="form-grid">
               <label>目标接口<select id="ai-interface" required></select></label>
@@ -146,7 +151,7 @@
           </form></article>
         </div>
         <article class="card list-card">
-          <div class="card-title"><div><span>PAGED QUERY</span><h2>测试用例列表</h2></div><b id="case-total" class="total-label">0 条</b></div>
+          <div class="card-title"><div><h2>测试用例列表</h2></div><b id="case-total" class="total-label">0 条</b></div>
           <form id="case-filter-form" class="filters case-filters">
             <input id="case-keyword" placeholder="按用例名称查询">
             <select id="case-filter-interface"><option value="">全部接口</option></select>
@@ -163,7 +168,7 @@
     <section class="tab-panel" id="tab-suites">
       <div class="split">
         <article class="card">
-          <div class="card-title"><div><span>REGRESSION PLAN</span><h2>新建回归套件</h2></div></div>
+          <div class="card-title"><div><h2>新建回归套件</h2></div></div>
           <p class="hint">把跨接口用例组织成稳定回归入口；用例依赖仍按拓扑顺序执行。</p>
           <form id="suite-form" class="form-grid">
             <label>套件名称<input id="suite-name" required placeholder="核心下单回归"></label>
@@ -175,13 +180,13 @@
           </form>
         </article>
         <article class="card">
-          <div class="card-title"><div><span>QUALITY TREND</span><h2>套件与最近质量</h2></div><button id="refresh-suites" class="ghost">刷新</button></div>
+          <div class="card-title"><div><h2>套件与最近质量</h2></div><button id="refresh-suites" class="ghost">刷新</button></div>
           <div id="suite-list" class="stack"></div>
         </article>
       </div>
     </section>
 
-    <section class="tab-panel" id="tab-openapi"><article class="card"><div class="card-title"><div><span>CONTRACT FIRST</span><h2>导入OpenAPI文档</h2></div></div><form id="openapi-form" class="form-grid"><label class="wide">OpenAPI JSON<textarea id="openapi-document" rows="18" placeholder='{"openapi":"3.0.3","paths":{...}}' required></textarea></label><label>覆盖已有接口<select id="openapi-overwrite"><option value="false">否</option><option value="true">是</option></select></label><label>生成Schema用例<select id="openapi-cases"><option value="true">是</option><option value="false">否</option></select></label><button class="primary wide">解析并导入</button></form></article></section>
+    <section class="tab-panel" id="tab-openapi"><article class="card"><div class="card-title"><div><h2>导入 OpenAPI 文档</h2></div></div><form id="openapi-form" class="form-grid"><label class="wide">OpenAPI JSON<textarea id="openapi-document" rows="18" placeholder='{"openapi":"3.0.3","paths":{...}}' required></textarea></label><label>覆盖已有接口<select id="openapi-overwrite"><option value="false">否</option><option value="true">是</option></select></label><label>生成 Schema 用例<select id="openapi-cases"><option value="true">是</option><option value="false">否</option></select></label><button class="primary wide">解析并导入</button></form></article></section>
   </main>
   <script src="/static/workbench.js"></script>
 </body>

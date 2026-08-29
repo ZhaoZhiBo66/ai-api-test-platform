@@ -28,19 +28,21 @@ def test_swagger_theme_assets_are_served(client):
 
 def test_dashboard_asset_exists():
     assert Path("app/static/index.html").is_file()
+    assert Path("app/static/home.css").is_file()
 
 
 def test_functional_workbench_and_assets_are_served(client):
     response = client.get("/workbench")
 
     assert response.status_code == 200
-    assert "发起异步测试" in response.text
-    assert "OpenAPI导入" in response.text
-    assert "AI生成测试用例" in response.text
-    assert "LIVE REGRESSION" in response.text
+    assert "发起测试" in response.text
+    assert "导入 OpenAPI 文档" in response.text
+    assert "AI 生成测试用例" in response.text
+    assert "回归执行过程" in response.text
     assert 'id="run-steps"' in response.text
     assert "interface-page-size" in response.text
     assert "case-filter-interface" in response.text
+    assert client.get("/static/home.css").status_code == 200
     assert client.get("/static/workbench.css").status_code == 200
     assert client.get("/static/workbench.js").status_code == 200
 

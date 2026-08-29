@@ -1,41 +1,54 @@
-:root { --qa-navy:#0b1730; --qa-blue:#2563eb; --qa-cyan:#0ea5b7; --qa-ink:#14213d; --qa-muted:#64748b; --qa-line:#e5eaf2; }
-html { background:#f5f7fb; }
-body { background:linear-gradient(180deg,#eef4ff 0,#f5f7fb 360px); color:var(--qa-ink); }
-.swagger-ui { font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif; color:var(--qa-ink); }
-.swagger-ui .topbar { min-height:72px; padding:0 4.6%; background:linear-gradient(108deg,#081426,#12366d 70%,#0d6c80); box-shadow:0 4px 18px #07111f33; }
-.swagger-ui .topbar-wrapper { max-width:1460px; min-width:auto; align-items:center; }
-.swagger-ui .topbar-wrapper:before { content:"AI 接口测试 · 调试中心"; color:#fff; font-size:18px; font-weight:700; letter-spacing:.2px; }
-.swagger-ui .topbar a, .swagger-ui .topbar .link { display:none; }
-.swagger-ui .topbar .download-url-wrapper { margin-left:auto; }
-.swagger-ui .topbar .download-url-wrapper .select-label { color:#bcd4f4; font-size:12px; }
-.swagger-ui .topbar .download-url-wrapper input[type=text] { width:220px; height:34px; border:1px solid #6689b9; color:#e8f1ff; background:#ffffff15; border-radius:8px 0 0 8px; }
-.swagger-ui .topbar .download-url-wrapper .download-url-button { height:34px; border-radius:0 8px 8px 0; background:#38bdf8; color:#08213c; font-weight:700; }
-.swagger-ui .info { max-width:1360px; margin:0 auto; padding:42px 3% 20px; }
-.swagger-ui .info .title { color:var(--qa-navy); font-size:31px; letter-spacing:-.8px; }
-.swagger-ui .info .title small.version-stamp { vertical-align:middle; background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:5px 9px; font-size:11px; }
-.swagger-ui .info .base-url { color:var(--qa-muted); font-size:13px; }
-.swagger-ui .info .description { max-width:760px; color:#52627a; line-height:1.8; }
-.swagger-ui .scheme-container { margin:0; padding:12px 0; background:transparent; box-shadow:none; }
-.swagger-ui .schemes { max-width:1360px; margin:0 auto; padding:0 3%; }
-.swagger-ui .opblock-tag-section { max-width:1360px; margin:0 auto 16px; padding:0 3%; }
-.swagger-ui .opblock-tag { margin:20px 0 12px; padding:15px 4px; border-bottom:1px solid var(--qa-line); color:var(--qa-navy); font-size:19px; font-weight:700; }
-.swagger-ui .opblock-tag small { color:var(--qa-muted); font-weight:400; }
-.swagger-ui .opblock { margin:10px 0; border-radius:12px; overflow:hidden; border-width:1px; box-shadow:0 7px 18px #1e293b0a; transition:transform .18s,box-shadow .18s; }
-.swagger-ui .opblock:hover { transform:translateY(-2px); box-shadow:0 13px 25px #1e293b13; }
-.swagger-ui .opblock .opblock-summary { padding:0 16px; min-height:52px; align-items:center; }
-.swagger-ui .opblock .opblock-summary-method { min-width:72px; padding:7px 8px; border-radius:7px; font-size:12px; font-weight:800; text-shadow:none; }
-.swagger-ui .opblock .opblock-summary-path { color:var(--qa-ink); font-weight:650; font-family:ui-monospace,Consolas,monospace; }
-.swagger-ui .opblock .opblock-summary-description { color:var(--qa-muted); font-size:13px; }
-.swagger-ui .opblock .opblock-section-header { min-height:52px; padding:12px 20px; background:#f8fafc; box-shadow:none; }
-.swagger-ui .opblock-body { padding:0 20px 20px; }
-.swagger-ui .btn { border-radius:8px; font-family:inherit; font-weight:700; letter-spacing:0; transition:.18s; }
-.swagger-ui .btn.execute { border-color:#078b9b; background:#0ea5b7; box-shadow:0 4px 12px #0ea5b733; }
-.swagger-ui .btn.try-out__btn { border-color:#2563eb; color:#1d4ed8; }
-.swagger-ui .btn.authorize { border-color:#2563eb; color:#1d4ed8; }
-.swagger-ui .authorization__btn { margin:8px 3% 0 auto; display:flex; }
-.swagger-ui table thead tr td, .swagger-ui table thead tr th { color:#52627a; font-size:12px; font-weight:700; }
-.swagger-ui .response-col_status { color:#2563eb; font-weight:800; }
-.swagger-ui select, .swagger-ui input[type=text], .swagger-ui textarea { border-radius:7px; border-color:#ccd6e5; font-family:inherit; }
-.swagger-ui .model-box { border-radius:9px; background:#f8fafc; }
-.swagger-ui .copy-to-clipboard { border-radius:6px; }
-@media(max-width:760px) { .swagger-ui .topbar { padding:0 16px; } .swagger-ui .topbar-wrapper:before { font-size:15px; } .swagger-ui .topbar .download-url-wrapper { display:none; } .swagger-ui .info { padding:28px 20px 12px; } .swagger-ui .opblock-tag-section { padding:0 14px; } .swagger-ui .opblock-summary-description { display:none; } .swagger-ui .opblock .opblock-summary-path { font-size:12px; } }
+:root {
+  --qa-text: #111827;
+  --qa-muted: #64748b;
+  --qa-line: #e5e7eb;
+  --qa-blue: #2563eb;
+  --qa-bg: #f8fafc;
+}
+
+html, body { background: var(--qa-bg); }
+.swagger-ui { color: var(--qa-text); font-family: Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+.swagger-ui .topbar { min-height: 60px; padding: 0 max(20px,calc((100vw - 1240px)/2)); border-bottom: 1px solid var(--qa-line); background: #fff; }
+.swagger-ui .topbar-wrapper { max-width: 1240px; min-width: 0; align-items: center; }
+.swagger-ui .topbar-wrapper::before { content: "接口 API 文档"; color: var(--qa-text); font-size: 15px; font-weight: 700; }
+.swagger-ui .topbar a, .swagger-ui .topbar .link { display: none; }
+.swagger-ui .topbar .download-url-wrapper { margin-left: auto; }
+.swagger-ui .topbar .download-url-wrapper .select-label { color: var(--qa-muted); font-size: 11px; }
+.swagger-ui .topbar .download-url-wrapper input[type=text] { width: 210px; height: 32px; border: 1px solid #cbd5e1; border-radius: 6px 0 0 6px; color: #334155; background: #fff; }
+.swagger-ui .topbar .download-url-wrapper .download-url-button { height: 32px; border-radius: 0 6px 6px 0; color: #fff; background: var(--qa-blue); font-size: 11px; }
+
+.swagger-ui .info { max-width: 1240px; margin: 0 auto; padding: 32px 20px 14px; }
+.swagger-ui .info .title { color: var(--qa-text); font-size: 27px; letter-spacing: -.03em; }
+.swagger-ui .info .title small.version-stamp { vertical-align: middle; padding: 4px 7px; border-radius: 999px; color: #1d4ed8; background: #eff6ff; font-size: 10px; }
+.swagger-ui .info .base-url { color: var(--qa-muted); font-size: 12px; }
+.swagger-ui .info .description { max-width: 760px; color: #475569; line-height: 1.7; }
+.swagger-ui .scheme-container { margin: 0; padding: 8px 0; background: transparent; box-shadow: none; }
+.swagger-ui .schemes { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+
+.swagger-ui .opblock-tag-section { max-width: 1240px; margin: 0 auto 12px; padding: 0 20px; }
+.swagger-ui .opblock-tag { margin: 16px 0 8px; padding: 12px 2px; border-bottom: 1px solid var(--qa-line); color: var(--qa-text); font-size: 17px; font-weight: 700; }
+.swagger-ui .opblock-tag small { color: var(--qa-muted); font-weight: 400; }
+.swagger-ui .opblock { margin: 7px 0; overflow: hidden; border-width: 1px; border-radius: 7px; box-shadow: none; }
+.swagger-ui .opblock .opblock-summary { min-height: 46px; padding: 0 12px; align-items: center; }
+.swagger-ui .opblock .opblock-summary-method { min-width: 66px; padding: 6px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; text-shadow: none; }
+.swagger-ui .opblock .opblock-summary-path { color: var(--qa-text); font-family: ui-monospace,Consolas,monospace; font-size: 13px; font-weight: 650; }
+.swagger-ui .opblock .opblock-summary-description { color: var(--qa-muted); font-size: 12px; }
+.swagger-ui .opblock .opblock-section-header { min-height: 46px; padding: 10px 16px; background: #f8fafc; box-shadow: none; }
+.swagger-ui .opblock-body { padding: 0 16px 16px; }
+.swagger-ui .btn { border-radius: 6px; font-family: inherit; font-weight: 650; letter-spacing: 0; }
+.swagger-ui .btn.execute { border-color: var(--qa-blue); background: var(--qa-blue); box-shadow: none; }
+.swagger-ui .btn.try-out__btn, .swagger-ui .btn.authorize { border-color: var(--qa-blue); color: #1d4ed8; }
+.swagger-ui .authorization__btn { display: flex; margin: 7px 20px 0 auto; }
+.swagger-ui table thead tr td, .swagger-ui table thead tr th { color: #475569; font-size: 11px; font-weight: 700; }
+.swagger-ui .response-col_status { color: var(--qa-blue); font-weight: 800; }
+.swagger-ui select, .swagger-ui input[type=text], .swagger-ui textarea { border-color: #cbd5e1; border-radius: 6px; font-family: inherit; }
+.swagger-ui .model-box { border-radius: 6px; background: #f8fafc; }
+
+@media (max-width: 760px) {
+  .swagger-ui .topbar { padding: 0 14px; }
+  .swagger-ui .topbar .download-url-wrapper { display: none; }
+  .swagger-ui .info { padding: 24px 14px 10px; }
+  .swagger-ui .opblock-tag-section { padding: 0 10px; }
+  .swagger-ui .opblock-summary-description { display: none; }
+  .swagger-ui .opblock .opblock-summary-path { font-size: 11px; }
+}

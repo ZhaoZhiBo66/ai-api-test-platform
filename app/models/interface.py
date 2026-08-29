@@ -16,6 +16,7 @@ class ApiInterface(Base):
     method: Mapped[str] = mapped_column(String(10), nullable=False)
     headers: Mapped[dict] = mapped_column(JSON, default=dict)
     body: Mapped[dict] = mapped_column(JSON, default=dict)
+    spec: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 

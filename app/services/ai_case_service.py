@@ -3,16 +3,30 @@ from sqlalchemy.orm import Session
 from app.ai.openai_client import openai_client
 from app.models.testcase import TestCase
 from app.services.interface_service import get_interface
+from app.utils.redaction import redact
 
 
 def generate_and_save_cases(
     db: Session,
     interface_id: int,
     input_data: dict,
-    expected_status_code: int = 200,
+    expected_status_code: int | None = 200,
 ) -> list[TestCase]:
-    get_interface(db, interface_id)
-    ai_cases = openai_client.generate_cases(input_data, expected_status_code)
+    interface = get_interface(db, interface_id)
+    context = redact(
+        {
+            "name": interface.name,
+            "method": interface.method,
+            "url": interface.url,
+            "headers": interface.headers,
+            "openapi": interface.spec,
+        }
+    )
+    ai_cases = openai_client.generate_cases(
+        input_data,
+        expected_status_code,
+        interface_context=context,
+    )
     saved_cases: list[TestCase] = []
 
     for item in ai_cases:
@@ -23,9 +37,14 @@ def generate_and_save_cases(
             # The caller states what this batch should return, so their value
             # wins over whatever the generator put in the item -- a model that
             # ignores the instruction in the prompt cannot override it here.
-            expected_status_code=expected_status_code,
+            expected_status_code=(
+                expected_status_code
+                if expected_status_code is not None
+                else item.get("expected_status_code", 400)
+            ),
             expected_json=item.get("expected_json", {}),
             sql_check=item.get("sql_check", {}),
+            request_config=(interface.spec or {}).get("request_config", {}),
         )
         db.add(case)
         saved_cases.append(case)

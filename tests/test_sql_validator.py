@@ -158,3 +158,30 @@ def test_broken_select_is_reported_not_raised(validator):
 
     assert ok is False
     assert "SQL校验执行失败" in message
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT load_file('/etc/passwd')",
+        "SELECT sleep(30)",
+        "SELECT * FROM api_interfaces FOR UPDATE",
+        "SELECT * FROM api_interfaces INTO OUTFILE '/tmp/x'",
+    ],
+)
+def test_high_risk_select_features_are_rejected(validator, sql):
+    ok, message = validator.validate({"sql": sql})
+
+    assert ok is False
+    assert "高风险" in message
+
+
+def test_optional_table_allowlist_blocks_unapproved_tables(validator, monkeypatch):
+    from app.utils.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "sut_allowed_tables", {"approved_table"})
+
+    ok, message = validator.validate({"sql": "SELECT name FROM api_interfaces"})
+
+    assert ok is False
+    assert "未授权表" in message

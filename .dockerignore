@@ -15,16 +15,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .mypy_cache/
+.coverage
+tmp/
+output/
+resume-output/
+learning/
+.docx-render-*/
+.docx-review-*/
 
 # Runtime output, recreated in the container.
 logs/
 reports/
 *.db
 
-# Regenerated on every POST /reports/allure.
-tests/generated_api_tests.py
-
-# Note: tests/ itself is deliberately kept. generate_pytest_file writes into
-# it and write_text does not create the parent directory, so the Allure
-# endpoint fails with FileNotFoundError if the directory is missing. pytest is
-# a runtime dependency here -- the platform shells out to it.
+tests/
+requirements-dev.txt

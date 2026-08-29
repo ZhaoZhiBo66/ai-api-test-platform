@@ -1,0 +1,13 @@
+# Copy this file to local.properties and use only local/test credentials.
+protocol=http
+host=127.0.0.1
+port=8000
+api_key=
+
+# Workload defaults for the first local baseline, not a production SLA.
+threads=10
+ramp_up=10
+duration=60
+page_size=20
+think_time_ms=200
+max_response_ms=1000

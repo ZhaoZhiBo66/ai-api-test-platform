@@ -10,5 +10,15 @@ __pycache__/
 logs/*.log
 reports/allure-results/
 reports/allure-report/
-tests/generated_api_tests.py
+reports/generated/
+.pytest-tmp/
+.pytest-tmp-*/
+tmp/
+output/
+resume-output/
+learning/
+.claude/
+.docx-render-*/
+.docx-review-*/
+.coverage
 

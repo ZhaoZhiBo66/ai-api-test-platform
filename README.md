@@ -1,259 +1,188 @@
-# AI 智能接口自动化测试平台
+# 接口回归质量门禁平台
 
-基于 `Python 3.12 + FastAPI + Pytest + OpenAI API + MySQL` 的接口自动化测试平台，面向测试开发 / AI 测试工程师简历项目。
+基于 `Python 3.12 + FastAPI + SQLAlchemy + OpenAPI + MySQL/SQLite` 的接口回归平台。项目重点不是替代 API 调试工具，而是把真实跨接口业务链沉淀为可重复执行、可查询、可接入 CI 的质量门禁。
 
-项目目标不是写一个临时 Demo，而是完成一条真实测试平台链路：
-
-接口录入 -> AI 生成测试用例 -> 自动执行接口请求 -> 响应断言 -> SQL 数据校验 -> AI 分析失败原因 -> 生成 Allure 报告。
-
-## 技术栈
-
-- 后端框架：FastAPI、uvicorn
-- 自动化测试：pytest、requests、allure-pytest
-- AI 能力：OpenAI API，默认模型 `gpt-4o`
-- 数据库：MySQL、SQLAlchemy、pymysql
-- 配置管理：python-dotenv、PyYAML
-- 日志：loguru
-- 文档：FastAPI Swagger
-- 部署：Linux、Docker Compose
-
-## 项目结构
+核心链路：
 
 ```text
-ai-api-test-platform/
-├── app/
-│   ├── api/                 # FastAPI 路由
-│   ├── ai/                  # OpenAI 调用与 Prompt 模板
-│   ├── database/            # 数据库连接与初始化
-│   ├── models/              # SQLAlchemy ORM 模型
-│   ├── schemas/             # Pydantic 入参出参模型
-│   ├── services/            # 核心业务服务
-│   └── utils/               # 配置、日志工具
-├── tests/                   # pytest 测试
-├── reports/                 # Allure 结果目录
-├── logs/                    # 运行日志
-├── config.yaml              # 默认配置
-├── .env.example             # 环境变量示例
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-└── main.py
+OpenAPI/接口录入
+  → 测试用例与依赖编排
+  → 回归套件
+  → 异步执行与确定性断言
+  → 历史趋势/Allure结果
+  → CI通过或阻断
 ```
 
-## 安装方式
+仓库内置一个独立订单服务，提供登录、商品、下单、支付和订单查询接口。首次启动会自动创建对应环境、5 条依赖用例和“核心下单回归”套件，因此无需寻找外部被测系统即可验证完整链路。
 
-```bash
-cd ai-api-test-platform
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+## 核心能力
+
+- 回归套件：按业务场景组织跨接口用例，保存失败快速停止和 AI 辅助分析策略。
+- 依赖与变量：检测循环依赖，按拓扑顺序执行，通过 JSONPath/响应头提取 Token、订单号等变量。
+- 确定性断言：支持状态码、JSONPath、响应头、耗时、正则、类型、JSON Schema 和只读 SQL 校验。
+- 契约导入：解析 OpenAPI 3/Swagger 文档并生成基础 Schema 用例。
+- 异步执行：任务排队、取消、结果持久化及进程重启后的中断状态修正。
+- CI 质量门禁：命令行提交套件、轮询结果，以 `0/1/2` 分别表示通过、测试失败和基础设施错误。
+- 安全边界：分角色 API Key、SSRF 防护、敏感字段脱敏、环境密钥加密、SQL 只读限制和审计日志。
+- AI 辅助：模型只生成候选用例和失败排查建议；最终通过/失败始终由确定性断言决定。
+
+## 一键本地演示
+
+### 1. 安装
+
+```powershell
+python -m venv .venv-codex
+.\.venv-codex\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+Copy-Item .env.example .env
 ```
 
-编辑 `.env`：
+本地默认使用项目根目录的 SQLite，不需要先安装 MySQL。
 
-```bash
-OPENAI_API_KEY=你的 OpenAI Key
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=你的数据库密码
+### 2. 同时启动平台和被测订单服务
+
+```powershell
+python scripts/run_demo.py
+```
+
+也可以双击 `start.cmd`。
+
+- 回归工作台：http://127.0.0.1:8000/workbench
+- 平台 API 文档：http://127.0.0.1:8000/docs
+- 被测订单服务：http://127.0.0.1:8010/docs
+
+启动脚本会自动执行 Alembic 迁移和幂等演示数据初始化。
+
+### 3. 执行 CI 风格质量门禁
+
+保持两个服务运行，在另一个终端执行：
+
+```powershell
+python scripts/quality_gate.py --suite-name "核心下单回归" --output reports/quality-gate.json
+```
+
+通过时退出码为 `0`；任何确定性断言失败时退出码为 `1`；连接失败、超时或配置错误时退出码为 `2`。
+
+### 4. 演示发现缺陷
+
+停止服务后设置受控缺陷开关，再重新启动：
+
+```powershell
+$env:DEMO_BUG_MODE="wrong_total"
+python scripts/run_demo.py
+```
+
+此时订单接口会把 `199.8` 错算为 `200.8`，质量门禁将在“创建订单并校验金额”用例处失败。该开关只存在于内置演示服务，用于稳定复现缺陷发现过程。
+
+## Docker Compose
+
+在 `.env` 中设置以下值：
+
+```dotenv
+MYSQL_ROOT_PASSWORD=独立的root密码
+DB_USER=ai_test_app
+DB_PASSWORD=应用账号密码
 DB_NAME=ai_test_platform
-
-# 可选：被测系统的数据库，仅 SQL 数据校验用到，见下文
-SUT_DATABASE_URL=mysql+pymysql://root:密码@127.0.0.1:3306/被测系统库名?charset=utf8mb4
+PLATFORM_API_KEY=高强度随机密钥
+PLATFORM_ENCRYPTION_KEY=另一条高强度随机值
 ```
 
-创建 MySQL 数据库：
-
-```sql
-create database ai_test_platform default character set utf8mb4 collate utf8mb4_unicode_ci;
-```
-
-初始化表：
-
-```bash
-python -m app.database.init_db
-```
-
-## 启动方式
-
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-访问：
-
-- Swagger 文档：http://127.0.0.1:8000/docs
-- 健康检查：http://127.0.0.1:8000/health
-
-## 核心接口示例
-
-### 1. 添加接口
-
-`POST /interfaces`
-
-```json
-{
-  "name": "登录接口",
-  "url": "https://example.com/api/login",
-  "method": "POST",
-  "headers": {
-    "Content-Type": "application/json"
-  },
-  "body": {
-    "username": "admin",
-    "password": "123456"
-  }
-}
-```
-
-### 2. AI 生成测试用例
-
-`POST /ai/interfaces/1/cases`
-
-```json
-{
-  "input_data": {
-    "username": "admin",
-    "password": "123456"
-  },
-  "expected_status_code": 200
-}
-```
-
-AI 会生成空值、边界值、超长字符串、特殊字符、非法类型、SQL 注入、XSS 等测试数据，并保存到数据库。
-
-如果没有配置 `OPENAI_API_KEY`，系统会走本地规则兜底生成用例，方便本地演示。
-
-### 3. 自动执行接口测试
-
-`POST /runs`
-
-```json
-{
-  "interface_id": 1,
-  "case_ids": [],
-  "analyze_by_ai": true
-}
-```
-
-执行结果会保存到 `test_runs` 和 `test_results` 表，失败用例会调用 AI 输出风险分析。
-
-### 4. AI 分析接口结果
-
-`POST /ai/analyze-result`
-
-```json
-{
-  "status_code": 500,
-  "response": {
-    "code": 500,
-    "msg": "Internal Server Error"
-  },
-  "assertion_message": "响应码错误，期望 200，实际 500"
-}
-```
-
-返回示例：
-
-```json
-{
-  "analysis": "服务端异常，建议检查后端日志、数据库连接、接口依赖服务和异常堆栈。"
-}
-```
-
-### 5. 生成 Allure 测试结果
-
-`POST /reports/allure`
-
-该接口会根据数据库中的测试用例生成 `tests/generated_api_tests.py`，然后执行：
-
-```bash
-pytest tests/generated_api_tests.py --alluredir reports/allure-results
-```
-
-本机安装 Allure 命令行后可查看报告：
-
-```bash
-allure serve reports/allure-results
-```
-
-## SQL 数据校验
-
-测试用例支持配置 SQL 校验字段：
-
-```json
-{
-  "sql_check": {
-    "sql": "select username from user where username='admin'",
-    "expected": {
-      "username": "admin"
-    }
-  }
-}
-```
-
-平台会在接口请求后执行 SQL，并校验数据库返回结果是否符合预期。
-
-SQL 校验读的是**被测系统的数据库**（上例中 `user` 表属于被测的登录接口），因此需要在 `.env` 中单独配置 `SUT_DATABASE_URL`。没有配置时，SQL 校验会返回明确的未配置提示，而不会去查平台自己的库——平台库里只有 `api_interfaces`、`test_cases` 等元数据表，校验它们没有意义。
-
-出于安全考虑，`sql_check.sql` 只接受单条 `SELECT` 语句：它来自接口入参且会直接在数据库上执行，其他语句（含多语句、注释开头的语句）会被拒绝。
-
-## 日志
-
-系统使用 `loguru` 记录：
-
-- 接口请求方法、URL、参数
-- 响应状态码
-- 断言失败信息
-- SQL 校验失败信息
-- OpenAI 调用兜底提示
-
-日志保存位置：
-
-```text
-logs/app.log
-```
-
-## Docker 启动
+启动：
 
 ```bash
 docker compose up --build
 ```
 
-`app` 会等 MySQL 通过健康检查后再启动，首次构建 MySQL 初始化数据目录需要几十秒。
+Compose 会同时启动 MySQL、平台和内置订单服务，并在平台启动前等待依赖健康检查通过。
 
-启动后访问：
+## 回归套件 API
 
-```text
-http://127.0.0.1:8000/docs
+创建套件：
+
+```http
+POST /suites
+Content-Type: application/json
+
+{
+  "name": "核心下单回归",
+  "description": "登录、下单、支付与查询",
+  "case_ids": [1, 2, 3, 4, 5],
+  "fail_fast": true,
+  "analyze_by_ai": false
+}
 ```
 
-注意：容器内不会配置 `SUT_DATABASE_URL`，SQL 数据校验会返回未配置提示。需要时在 `docker-compose.yml` 的 `app.environment` 里指向被测系统的数据库。
+异步执行：
 
-## 简历写法参考
+```http
+POST /suites/1/runs/async
+Content-Type: application/json
 
-项目名称：AI 智能接口自动化测试平台
+{
+  "environment_id": 1,
+  "variables": {}
+}
+```
 
-项目描述：
+查询最近趋势：
 
-基于 FastAPI、Pytest、OpenAI API 和 MySQL 设计并实现接口自动化测试平台，支持接口管理、AI 自动生成测试用例、自动执行接口请求、响应断言、SQL 数据校验、AI 失败原因分析和 Allure 测试报告生成。
+```http
+GET /suites/1/trends?limit=20
+```
 
-个人职责：
+## 环境、依赖和断言
 
-- 设计接口管理、测试用例、测试执行记录、测试结果等数据库模型。
-- 封装 OpenAI API，实现边界值、空值、非法类型、SQL 注入、XSS 等测试用例自动生成。
-- 基于 requests 实现 GET、POST、PUT、DELETE、PATCH 请求执行和响应断言。
-- 基于 SQLAlchemy 实现 MySQL 数据校验能力。
-- 基于 loguru 实现接口请求、响应结果、异常信息日志落盘。
-- 集成 allure-pytest，支持自动生成接口测试报告。
+- 环境保存 `base_url`、公共请求头、普通变量和只写加密 secrets。
+- URL、请求头和请求体支持 `${token}`、`${timestamp}`、`${uuid}` 等运行时变量。
+- `dependencies` 声明前置用例；执行器检测循环依赖并补齐未显式选择的前置用例。
+- `extractors` 从响应 JSON、响应头或状态码提取变量。
+- `assertions` 支持 `eq/ne/contains/regex/type/gt/gte/lt/lte/json_schema` 等操作符。
+- SQL 校验只接受单条 `SELECT`，限制返回行数，可配置表白名单；必须使用被测库只读账号。
 
-## 后续可扩展方向
+## AI 使用边界
 
-- 增加 Web 页面，支持在线录入接口和查看报告。
-- 增加定时任务，定时执行回归测试。
-- 增加 Jenkins / GitHub Actions CI 集成。
-- 增加 token 登录态管理和环境变量切换。
-- 增加接口依赖提取，例如登录接口返回 token 后自动传给后续接口。
+AI 不是项目的判定核心：
 
+1. 模型根据接口契约和正常输入生成候选用例。
+2. 返回内容必须经过 JSON 解析和 Pydantic 结构校验。
+3. 缺少密钥、调用失败或输出非法时切换到本地确定性规则。
+4. 测试是否通过仅由断言和 SQL 校验决定。
+5. 发给模型的响应和断言信息会先进行敏感字段脱敏和长度限制。
+
+不配置 `OPENAI_API_KEY` 不影响回归套件、质量门禁和报告链路。
+
+## 测试与质量
+
+```powershell
+pytest tests -q --cov=app --cov-report=term-missing --cov-fail-under=80
+```
+
+当前测试覆盖接口/用例/环境/套件 CRUD、依赖执行、变量传递、断言引擎、OpenAPI 导入、异步任务、报告隔离、SQL 安全、SSRF、鉴权、脱敏、内置订单服务和质量门禁脚本。GitHub Actions 同时验证：
+
+当前本地验证结果为 `171 passed`，应用代码覆盖率 `86.93%`。
+
+- 单元与接口测试及 80% 覆盖率门禁；
+- MySQL 上的完整 Alembic 迁移；
+- 内置订单服务的端到端回归门禁。
+
+## 目录结构
+
+```text
+app/                 平台 API、模型、服务和 Web 工作台
+demo_sut/            可独立运行的订单被测服务
+migrations/          Alembic 数据库迁移
+scripts/
+  bootstrap_database.py
+  seed_demo.py       幂等初始化演示业务链
+  run_demo.py        同时管理两个本地服务
+  quality_gate.py    CI 质量门禁客户端
+tests/               自动化测试
+performance/         JMeter 基线脚本和结果记录模板
+```
+
+## 已知边界
+
+- 当前异步执行器是单进程受限线程池，适合单实例演示；多实例需要独立任务队列。
+- 套件趋势目前按执行任务聚合，尚未实现版本基线、Flaky 自动识别和通知集成。
+- SSRF 应用层校验不能替代生产环境的网络出口控制。
+- 本地性能脚本只提供可复现实验入口，未把练习参数包装成生产 SLA。

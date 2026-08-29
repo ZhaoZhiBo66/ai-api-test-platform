@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.ai.openai_client import openai_client
+from app.api.security import require_api_key
 from app.database.db import get_db
 from app.schemas.testcase_schema import AIGenerateRequest, AnalyzeRequest, TestCaseOut
 from app.services.ai_case_service import generate_and_save_cases, list_cases_by_interface
 
-router = APIRouter(prefix="/ai", tags=["AI能力"])
+router = APIRouter(prefix="/ai", tags=["AI能力"], dependencies=[Depends(require_api_key)])
 
 
 @router.post("/interfaces/{interface_id}/cases", response_model=list[TestCaseOut])

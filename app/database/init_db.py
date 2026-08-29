@@ -2,7 +2,10 @@ from app.database.db import Base, engine
 
 # Import models so SQLAlchemy can register metadata before create_all.
 from app.models.interface import ApiInterface  # noqa: F401
+from app.models.environment import TestEnvironment  # noqa: F401
+from app.models.audit import AuditLog  # noqa: F401
 from app.models.result import TestResult, TestRun  # noqa: F401
+from app.models.suite import TestSuite, TestSuiteCase  # noqa: F401
 from app.models.testcase import TestCase  # noqa: F401
 
 

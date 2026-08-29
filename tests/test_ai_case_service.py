@@ -29,10 +29,15 @@ def test_fallback_covers_every_field_and_the_injection_cases():
     cases = OpenAIClient._fallback_cases({"username": "admin", "age": 30})
 
     assert names(cases) == {
+        "username缺失",
+        "username为null",
         "username为空",
+        "username全空格",
         "username非法类型",
         "username超长字符串",
-        "age为空",
+        "username特殊字符",
+        "age缺失",
+        "age为null",
         "age非法类型",
         "SQL注入",
         "XSS脚本注入",
@@ -72,6 +77,19 @@ def test_fallback_on_empty_input_still_yields_the_injection_cases():
     assert names(OpenAIClient._fallback_cases({})) == {"SQL注入", "XSS脚本注入"}
 
 
+def test_fallback_without_forced_status_keeps_a_happy_path_and_uses_400_for_negative_cases():
+    cases = OpenAIClient._fallback_cases({"username": "admin"}, None)
+
+    baseline = next(case for case in cases if case["case_name"] == "基础有效请求")
+    negative_codes = {
+        case["expected_status_code"]
+        for case in cases
+        if case["case_name"] != "基础有效请求"
+    }
+    assert baseline["expected_status_code"] == 200
+    assert negative_codes == {400}
+
+
 def test_generate_cases_falls_back_when_no_client_is_configured():
     # The root conftest forces OPENAI_API_KEY empty, so this is the real path.
     client = OpenAIClient()
@@ -80,6 +98,22 @@ def test_generate_cases_falls_back_when_no_client_is_configured():
     assert names(client.generate_cases({"username": "admin"})) == names(
         OpenAIClient._fallback_cases({"username": "admin"})
     )
+
+
+def test_case_response_parser_accepts_json_fences_and_validates_fields():
+    parsed = OpenAIClient._parse_case_response(
+        '```json\n[{"case_name":"空值", "data":{}, "expected_status_code":400}]\n```'
+    )
+
+    assert parsed[0]["case_name"] == "空值"
+    assert parsed[0]["expected_status_code"] == 400
+
+
+def test_case_response_parser_rejects_invalid_status_code():
+    with pytest.raises(Exception):
+        OpenAIClient._parse_case_response(
+            '[{"case_name":"坏数据", "data":{}, "expected_status_code":999}]'
+        )
 
 
 # --- the prompt -------------------------------------------------------------
@@ -104,7 +138,7 @@ def test_prompt_carries_the_input_data_unescaped():
 def test_generate_and_save_persists_the_generated_cases(db_session, interface):
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"})
 
-    assert len(saved) == 5
+    assert len(saved) == 9
     stored = db_session.query(CaseModel).filter(CaseModel.interface_id == interface.id).all()
     assert {c.case_name for c in stored} == {c.case_name for c in saved}
     assert all(c.id is not None for c in saved)
@@ -118,7 +152,9 @@ def test_generate_and_save_rejects_an_unknown_interface(db_session):
 
 
 def test_generate_and_save_fills_in_defaults_for_a_bare_item(monkeypatch, db_session, interface):
-    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data, code=200: [{}])
+    monkeypatch.setattr(
+        ai_case_service.openai_client, "generate_cases", lambda data, code=200, **kwargs: [{}]
+    )
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"}, 201)
 
@@ -134,7 +170,7 @@ def test_callers_expected_status_code_wins_over_the_item(monkeypatch, db_session
     monkeypatch.setattr(
         ai_case_service.openai_client,
         "generate_cases",
-        lambda data, code=200: [{"case_name": "自定义", "expected_status_code": 999}],
+        lambda data, code=200, **kwargs: [{"case_name": "自定义", "expected_status_code": 999}],
     )
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"}, 201)
@@ -159,7 +195,7 @@ def test_generate_and_save_keeps_a_sql_check_from_the_item(monkeypatch, db_sessi
     monkeypatch.setattr(
         ai_case_service.openai_client,
         "generate_cases",
-        lambda data, code=200: [{"case_name": "带SQL", "sql_check": check}],
+        lambda data, code=200, **kwargs: [{"case_name": "带SQL", "sql_check": check}],
     )
 
     saved = ai_case_service.generate_and_save_cases(db_session, interface.id, {"username": "admin"})
@@ -168,7 +204,9 @@ def test_generate_and_save_keeps_a_sql_check_from_the_item(monkeypatch, db_sessi
 
 
 def test_generate_and_save_with_no_generated_cases_saves_nothing(monkeypatch, db_session, interface):
-    monkeypatch.setattr(ai_case_service.openai_client, "generate_cases", lambda data, code=200: [])
+    monkeypatch.setattr(
+        ai_case_service.openai_client, "generate_cases", lambda data, code=200, **kwargs: []
+    )
 
     assert ai_case_service.generate_and_save_cases(db_session, interface.id, {}) == []
     assert db_session.query(CaseModel).count() == 0

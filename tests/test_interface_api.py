@@ -1,6 +1,7 @@
 import pytest
 
 from app.models.interface import ApiInterface
+from app.models.testcase import TestCase as CaseModel
 
 
 def payload(**overrides) -> dict:
@@ -54,6 +55,31 @@ def test_list_returns_newest_first(client):
     listed = client.get("/interfaces").json()
 
     assert [item["id"] for item in listed] == [second["id"], first["id"]]
+
+
+def test_paged_query_filters_by_keyword_method_and_reports_total(client):
+    for index in range(12):
+        client.post(
+            "/interfaces",
+            json=payload(
+                name=f"searchable-{index}",
+                url=f"https://api.example.com/items/{index}",
+                method="GET" if index % 2 == 0 else "POST",
+            ),
+        )
+
+    response = client.get(
+        "/interfaces/page",
+        params={"keyword": "searchable", "method": "GET", "page": 2, "page_size": 5},
+    )
+
+    assert response.status_code == 200
+    page = response.json()
+    assert page["total"] == 6
+    assert page["pages"] == 2
+    assert page["page"] == 2
+    assert len(page["items"]) == 1
+    assert all(item["method"] == "GET" for item in page["items"])
 
 
 def test_get_unknown_id_returns_404(client):
@@ -114,6 +140,24 @@ def test_delete_unknown_id_returns_404(client):
     response = client.delete("/interfaces/9999")
 
     assert response.status_code == 404
+
+
+def test_delete_interface_with_cases_returns_conflict(client, db_session):
+    created = client.post("/interfaces", json=payload()).json()
+    db_session.add(
+        CaseModel(
+            interface_id=created["id"],
+            case_name="保留历史",
+            data={},
+            expected_status_code=200,
+        )
+    )
+    db_session.commit()
+
+    response = client.delete(f"/interfaces/{created['id']}")
+
+    assert response.status_code == 409
+    assert client.get(f"/interfaces/{created['id']}").status_code == 200
 
 
 @pytest.mark.parametrize(

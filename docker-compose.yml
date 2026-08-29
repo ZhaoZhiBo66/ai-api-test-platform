@@ -3,8 +3,10 @@ services:
     image: mysql:8.0
     container_name: ai-api-test-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: ai_test_platform
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-ai_test_platform}
+      MYSQL_USER: ${DB_USER:-ai_test_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     ports:
       - "3306:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -12,11 +14,23 @@ services:
       # Over TCP on purpose, not the socket. While MySQL initialises the data
       # directory it runs a temporary server with --skip-networking, which
       # answers on the socket and would report healthy too early.
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 30s
+
+  demo-sut:
+    build: .
+    container_name: api-quality-demo-sut
+    command: uvicorn demo_sut.main:app --host 0.0.0.0 --port 8010
+    ports:
+      - "8010:8010"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   app:
     build: .
@@ -27,14 +41,22 @@ services:
         # for MySQL to accept connections. First boot takes tens of seconds,
         # and the lifespan handler connects immediately.
         condition: service_healthy
+      demo-sut:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    command: sh -c "python scripts/bootstrap_database.py && python scripts/seed_demo.py && uvicorn main:app --host 0.0.0.0 --port 8000"
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: 123456
-      DB_NAME: ai_test_platform
+      DATABASE_URL: mysql+pymysql://${DB_USER:-ai_test_app}:${DB_PASSWORD:?Set DB_PASSWORD in .env}@mysql:3306/${DB_NAME:-ai_test_platform}?charset=utf8mb4
+      DEMO_SUT_URL: http://demo-sut:8010
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: gpt-4o
+      API_AUTH_ENABLED: "true"
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:?Set PLATFORM_API_KEY in .env before starting the platform}
+      PLATFORM_ENCRYPTION_KEY: ${PLATFORM_ENCRYPTION_KEY:?Set PLATFORM_ENCRYPTION_KEY in .env before starting the platform}
+      PLATFORM_API_KEYS: ${PLATFORM_API_KEYS:-}
+      ALLOW_PRIVATE_TARGETS: "false"
+      TARGET_HOST_ALLOWLIST: demo-sut
+      SUT_DATABASE_URL: ${SUT_DATABASE_URL:-}
+      SUT_ALLOWED_TABLES: ${SUT_ALLOWED_TABLES:-}
 

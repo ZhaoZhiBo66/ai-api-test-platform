@@ -1,81 +1,62 @@
-import subprocess
-import sys
-from pathlib import Path
+import json
+from uuid import uuid4
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.interface import ApiInterface
-from app.models.testcase import TestCase
+from app.models.result import TestResult, TestRun
 from app.utils.config import get_settings
 
 
-def generate_pytest_file(db: Session) -> Path:
+def generate_allure_from_run(db: Session, run_id: int) -> dict:
+    """Build isolated Allure result files from persisted results without rerunning targets."""
     settings = get_settings()
-    test_file = settings.root_dir / "tests" / "generated_api_tests.py"
-    cases = db.query(TestCase).order_by(TestCase.id.asc()).all()
-
-    lines = [
-        "import requests",
-        "import allure",
-        "import pytest",
-        "",
-        "CASES = [",
-    ]
-    for case in cases:
-        interface = db.get(ApiInterface, case.interface_id)
-        if not interface:
-            continue
-        lines.append(
-            repr(
-                {
-                    "case_name": case.case_name,
-                    "url": interface.url,
-                    "method": interface.method,
-                    "headers": interface.headers or {},
-                    "data": case.data or {},
-                    "expected_status_code": case.expected_status_code,
-                    "expected_json": case.expected_json or {},
-                }
-            )
-            + ","
-        )
-    lines.extend(
-        [
-            "]",
-            "",
-            "@allure.feature('AI接口自动化测试')",
-            "@pytest.mark.parametrize('case', CASES, ids=[item['case_name'] for item in CASES])",
-            "def test_generated_api_case(case):",
-            "    with allure.step(case['case_name']):",
-            "        method = case['method'].upper()",
-            "        if method == 'GET':",
-            "            response = requests.get(case['url'], headers=case['headers'], params=case['data'], timeout=10)",
-            "        else:",
-            "            response = requests.request(method, case['url'], headers=case['headers'], json=case['data'], timeout=10)",
-            "        assert response.status_code == case['expected_status_code']",
-            "        try:",
-            "            body = response.json()",
-            "        except ValueError:",
-            "            body = {}",
-            "        for key, expected in case['expected_json'].items():",
-            "            assert body.get(key) == expected",
-        ]
+    run = db.get(TestRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="测试任务不存在")
+    results = (
+        db.query(TestResult).filter(TestResult.run_id == run_id).order_by(TestResult.id.asc()).all()
     )
-    test_file.write_text("\n".join(lines), encoding="utf-8")
-    return test_file
+    if not results:
+        raise HTTPException(status_code=409, detail="该任务还没有可生成报告的测试结果")
 
-
-def run_allure(db: Session) -> dict:
-    settings = get_settings()
-    test_file = generate_pytest_file(db)
-    allure_dir = settings.root_dir / "reports" / "allure-results"
-    allure_dir.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, "-m", "pytest", str(test_file), "--alluredir", str(allure_dir)]
-    result = subprocess.run(command, cwd=settings.root_dir, capture_output=True, text=True, check=False)
+    execution_id = f"run-{run_id}-{uuid4().hex[:8]}"
+    allure_dir = settings.root_dir / "reports" / "allure-results" / execution_id
+    allure_dir.mkdir(parents=True, exist_ok=False)
+    for result in results:
+        item_uuid = str(uuid4())
+        duration = result.duration_ms or 0
+        stop = int(result.created_at.timestamp() * 1000)
+        start = max(0, stop - duration)
+        payload = {
+            "uuid": item_uuid,
+            "name": result.case_name,
+            "fullName": f"platform.run_{run_id}.case_{result.case_id}",
+            "status": "passed" if result.status == "passed" else "failed",
+            "statusDetails": {
+                "message": result.assertion_message or result.ai_analysis,
+                "trace": result.ai_analysis,
+            },
+            "start": start,
+            "stop": stop,
+            "labels": [
+                {"name": "feature", "value": "接口回归质量门禁"},
+                {"name": "suite", "value": f"run-{run_id}"},
+                {"name": "framework", "value": "platform"},
+            ],
+            "parameters": [
+                {"name": "status_code", "value": repr(result.status_code)},
+                {"name": "duration_ms", "value": repr(result.duration_ms)},
+                {"name": "request", "value": json.dumps(result.request_data, ensure_ascii=False)},
+                {"name": "response", "value": json.dumps(result.response_data, ensure_ascii=False)},
+            ],
+        }
+        (allure_dir / f"{item_uuid}-result.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
     return {
-        "command": " ".join(command),
-        "return_code": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "run_id": run_id,
+        "execution_id": execution_id,
+        "result_count": len(results),
         "allure_results": str(allure_dir),
     }

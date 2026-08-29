@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.db import Base
@@ -17,5 +17,12 @@ class TestCase(Base):
     expected_status_code: Mapped[int] = mapped_column(Integer, default=200)
     expected_json: Mapped[dict] = mapped_column(JSON, default=dict)
     sql_check: Mapped[dict] = mapped_column(JSON, default=dict)
+    assertions: Mapped[list] = mapped_column(JSON, default=list)
+    extractors: Mapped[list] = mapped_column(JSON, default=list)
+    dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    request_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 

@@ -21,7 +21,80 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest tests -q
+        run: pytest tests -q --cov=app --cov-report=term-missing --cov-fail-under=80
+
+  demo-quality-gate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./ci-quality.db
+      DEMO_SUT_URL: http://127.0.0.1:8010
+      ALLOW_PRIVATE_TARGETS: "true"
+      TARGET_HOST_ALLOWLIST: 127.0.0.1,localhost
+      API_AUTH_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Bootstrap deterministic demo
+        run: |
+          python scripts/bootstrap_database.py
+          python scripts/seed_demo.py
+      - name: Start services and enforce regression gate
+        run: |
+          python -m uvicorn demo_sut.main:app --host 127.0.0.1 --port 8010 > demo-sut.log 2>&1 &
+          python -m uvicorn main:app --host 127.0.0.1 --port 8000 > platform.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null && curl --fail --silent http://127.0.0.1:8010/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          python scripts/quality_gate.py --suite-name "核心下单回归" --timeout 60 --output reports/quality-gate.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-quality-gate
+          path: |
+            reports/quality-gate.json
+            demo-sut.log
+            platform.log
+
+  migration-smoke:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: ai_test_platform
+          MYSQL_USER: ai_test_app
+          MYSQL_PASSWORD: ci-app-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: mysql+pymysql://ai_test_app:ci-app-password@127.0.0.1:3306/ai_test_platform?charset=utf8mb4
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Upgrade schema to head
+        run: alembic upgrade head
+      - name: Check current revision
+        run: alembic current

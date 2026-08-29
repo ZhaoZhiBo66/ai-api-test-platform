@@ -1,21 +1,17 @@
 app:
-  name: AI 智能接口自动化测试平台
+  name: 接口回归质量门禁平台
   env: dev
   base_url: http://127.0.0.1:8000
+  api_auth_enabled: false
 
 openai:
   model: gpt-4o
   temperature: 0.2
 
-database:
-  driver: mysql+pymysql
-  host: 127.0.0.1
-  port: 3306
-  user: root
-  password: your_password_here
-  name: ai_test_platform
-
 test:
   request_timeout: 10
+  max_sql_rows: 100
   default_expected_status_code: 200
+  async_workers: 4
+  max_queued_runs: 100
 
